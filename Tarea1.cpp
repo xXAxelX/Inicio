@@ -2,7 +2,7 @@
 #include <iostream>
 #include <conio.h> // Para detectar la tecla presionada
 #include <windows.h> // Para Sleep y detectar clics del mouse
-#include <stdbool.h> // Para usar variables booleanas
+#include <stdbool.h> // Para usar variables booleanas toda
 using namespace std;
 
 int main() {
