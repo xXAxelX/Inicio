@@ -5,51 +5,25 @@
 #include <stdbool.h> // Para usar variables booleanas
 using namespace std;
 
-int main() {
+void procesarProductos(int numeroP, int QuantumSO, int productoDañado, string productos[], int quantum[]) {
     int contador = 0;
-    int numeroP = 0;
-    bool CantidadC = false; 
-    bool Malo = false;
-    int productoDañado;
+    int QuantumA = 0;
     bool terminarEjecucion = false;
     bool interrupcionPorUsuario = false;
-    bool mensajeInterrupcion = false; // Variable para controlar la interrupción
-    string productos[] = {"Zanahoria", "Brócoli", "Espinaca", "Coliflor", "Pepino", "Pimiento", "Calabacín", "Lechuga", "Apio", "Berenjena"};
-    
-    // Pide el número de productos
-    while (CantidadC == false){
-        cout << "Ingresa un numero de productos entre 5 y 10: ";
-        cin >> numeroP;
-        if (numeroP >= 5 && numeroP <= 10){
-            CantidadC = true;
-        }
-        else{
-            CantidadC = false;
-        }
-    }    
-    // Pide el valor de "Producto dañado".      
-    while (Malo == false){
-        cout << "Ingresa el producto dañado (número de producto entre 1 y " << numeroP << "): ";
-        cin >> productoDañado;
-        if (productoDañado <= numeroP || productoDañado == 0){
-            Malo = true;
-        }
-        else {
-            Malo = false;
-        }
-    }    
-    cout << "\t\t\tLa cantidad de productos es: " << numeroP << endl;
-    cout << "\t\t\tEl producto dañado es el número: " << productoDañado << endl;
-    cout << "\tPresione la tecla A para continuar" << "\t\tPrecione F para terminar programa." << "\t\tPrecione la tecla C para interrumpir un producto" << endl;
-    
+
     while (contador < numeroP) {
         contador++;
         // Limpia la línea anterior antes de imprimir
-        printf("\r\t\t\t\t\t\t\t                     ");
+        printf("\r\t\t\t\t\t\t\t                                                                   ");
         fflush(stdout);
         // Imprime el mensaje de procesamiento en la misma línea
         printf("\rProcesando el producto No. %d: %s", contador, productos[contador - 1].c_str());
-        fflush(stdout);            
+        fflush(stdout);
+
+        printf("\r\t\t\t\t\t\t\tQuantum del producto %d: %d", contador, quantum[contador - 1]);
+        fflush(stdout);
+        QuantumA = quantum[contador - 1];
+        
 
         char letra = _getch();
         if (contador == productoDañado || letra == 'p') { 
@@ -57,17 +31,16 @@ int main() {
             printf("\r\nInterrupción aplicada, para el producto No. %d...", contador);
             fflush(stdout);
             Sleep(1000);  // Espera 1 segundo para que el usuario lo vea
-            printf("\033[F\033[K");  // Borra la línea de interrupción (opcional)
+            printf("\033[F\033[K");  
         } 
         else if (letra == 'A' || letra == 'a') {
             int vueltas = 1;
-            while (vueltas <= 10) {
+            while (vueltas <= QuantumSO) {
                 // Limpia la línea anterior antes de imprimir
                 printf("\r\t\t\t\t\t\t\t                     ");
                 fflush(stdout);
-
                 // Actualiza el número del chequeo
-                printf("\r\t\t\t\t\t\t\tChequeo número: %d", vueltas);
+                printf("\r\t\t\t\t\t\t\t\t\t\t\tChequeo número: %d", vueltas);
                 fflush(stdout);
                 if (_kbhit()) {
                     char tecla = _getch();
@@ -100,5 +73,80 @@ int main() {
             printf("\033[E\033[K");
             printf("\n\t\t\tFin, proceso completado con interrupciones\n");
         }
+}
+
+
+int main() {
+    int contador = 0;
+    int numeroP = 0;
+    int QuantumSO = 0;
+    bool CantidadC = false;
+    bool QSO = false;
+    bool Malo = false;
+    int productoDañado;
+    bool terminarEjecucion = false;
+    bool interrupcionPorUsuario = false;
+    bool mensajeInterrupcion = false; 
+    int QuantumA = 0;
+    string productos[] = {"Atún", "Aceite de soya", "Arroz", "Manteca", "Manteca", "Tomate", "Papas", "Sandias", "Melones ", "Papayas"};
+    int quantum [] = {5, 12, 4, 8, 2, 6, 1, 7, 9, 10};
+
+    // Pide el número de productos
+    while (QSO == false){
+        cout << "Ingresa el quantum del SO entre 5 y 10: ";
+        cin >> QuantumSO;
+        // Validar si la entrada es un número (evitar letras)
+        if (cin.fail()) {
+            cin.clear();  // Limpia el estado de error de cin
+            cin.ignore(10000, '\n');  // Descarta la entrada incorrecta
+            cout << "Error: No puedes ingresar letras, solo numeros.\n";
+            continue;
+        }
+        if (QuantumSO >= 5 && QuantumSO <= 10){
+            QSO = true;
+        }
+        else{
+            QSO = false;
+        }
+    }    
+    while (CantidadC == false){
+        cout << "Ingresa un numero de productos entre 5 y 10: ";
+        cin >> numeroP;
+        // Validar si la entrada es un número (evitar letras)
+        if (cin.fail()) {
+            cin.clear();  // Limpia el estado de error de cin
+            cin.ignore(10000, '\n');  // Descarta la entrada incorrecta
+            cout << "Error: No puedes ingresar letras, solo numeros.\n";
+            continue;
+        }
+        if (numeroP >= 5 && numeroP <= 10){
+            CantidadC = true;
+        }
+        else{
+            CantidadC = false;
+        }
+    }    
+    // Pide el valor de "Producto dañado".      
+    while (Malo == false){
+        cout << "Ingresa el producto dañado (número de producto entre 1 y " << numeroP << "): ";
+        cin >> productoDañado;
+        if (cin.fail()) {
+            cin.clear();  // Limpia el estado de error de cin
+            cin.ignore(10000, '\n');  // Descarta la entrada incorrecta
+            cout << "Error: No puedes ingresar letras, solo numeros.\n";
+            continue;
+        }
+        if (productoDañado <= numeroP || productoDañado == 0){
+            Malo = true;
+        }
+        else {
+            Malo = false;
+        }
+    }    
+    cout << "\t\t\tLa cantidad de productos es: " << numeroP << endl;
+    cout << "\t\t\tEl producto dañado es el número: " << productoDañado << endl;
+    cout << "\tPresione la tecla A para continuar" << "\t\tPrecione F para terminar programa." << "\t\tPrecione la tecla C para interrumpir un producto" << endl;
+    
+    procesarProductos(numeroP, QuantumSO, productoDañado, productos, quantum);
     return 0;
 }
