@@ -1,5 +1,7 @@
 #include <stdio.h>
 #include <iostream>
+#include <map>
+#include <string>
 #include <conio.h> // Para detectar la tecla presionada
 #include <windows.h> // Para Sleep y detectar clics del mouse
 #include <stdbool.h> // Para usar variables booleanas
@@ -77,6 +79,44 @@ void procesarProductos(int numeroP, int QuantumSO, int productoDañado, string p
 
 
 int main() {
+    std::map<int, std::string> atun = {
+        {1, "Peso"},
+        {2, "Etiqueta"},
+        {3, "Vencimiento"},
+        {4, "Proteínas"},
+        {5, "Sodio"},
+        {6, "Grasa"},
+        {7, "Grasa saturada"},
+        {8, "Valor nutricional"},
+        {9, "Evaluación física del producto"},
+        {10, "Certificación vigente"}
+    };
+
+    std::map<int, std::string> manteca = {
+        {1, "Peso"},
+        {2, "Alto contenido de grasa láctea"},
+        {3, "Vencimiento"},
+        {4, "Contenidos máximos de agua del 16%"},
+        {5, "Textura suave"},
+        {6, "Determinación del % de humedad: Máximo 16%"},
+        {7, "Grasa 2%"},
+        {8, "Valor nutricional"},
+        {9, "Consistencia"},
+        {10, "Control de ausencia de antisépticos"}
+    };
+
+    std::map<int, std::string> manteca2 = {
+        {1, "Libre de impurezas"},
+        {2, "Verificación el contenido de contaminantes"},
+        {3, "Vencimiento"},
+        {4, "Tipo"},
+        {5, "Grano entero"},
+        {6, "Grano suelto"},
+        {7, "Sin preservativos"},
+        {8, "Valor nutricional"},
+        {9, "Empaque"},
+        {10, "Certificación vigente"}
+    };
     int contador = 0;
     int numeroP = 0;
     int QuantumSO = 0;
