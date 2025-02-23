@@ -77,7 +77,6 @@ void procesarProductos(int numeroP, int QuantumSO, int productoDañado, string p
         }
 }
 
-
 int main() {
     std::map<int, std::string> atun = {
         {1, "Peso"},
