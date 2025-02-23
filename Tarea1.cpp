@@ -116,7 +116,6 @@ int main() {
         {9, "Empaque"},
         {10, "Certificación vigente"}
     };
-
     int contador = 0;
     int numeroP = 0;
     int QuantumSO = 0;
