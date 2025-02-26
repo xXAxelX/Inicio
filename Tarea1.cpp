@@ -48,6 +48,15 @@ void procesarProductos(int numeroP, int QuantumSO, int productoDañado, string p
             fflush(stdout);
             printf("\rProcesando el producto No. %d: %s", i + 1, productos[i].c_str());
             fflush(stdout);
+            std::string productoActual = productos[i];
+            std::map<int, std::string> chequeoActual;
+
+            // Buscar el conjunto de chequeos para el producto actual
+            if (chequeos.find(productoActual) != chequeos.end()) {
+                chequeoActual = chequeos[productoActual];
+            } else {
+                chequeoActual = chequeos["Genérico"]; // Usar los chequeos generales si no está en la lista
+            }
             printf("\r\t\t\t\t\t\t\tQuantum del producto %d: %d", i + 1, quantum[i]);
             fflush(stdout);
 
@@ -65,7 +74,7 @@ void procesarProductos(int numeroP, int QuantumSO, int productoDañado, string p
                     }
                     printf("\r\t\t\t\t\t\t\t                     ");
                     fflush(stdout);
-                    printf("\r\t\t\t\t\t\t\t\t\t\t\tChequeo número: %d", vueltas);
+                    printf("\r\t\t\t\t\t\t\tChequeo número %d: %s", vueltas, chequeoActual[vueltas].c_str());
                     fflush(stdout);
 
                     if (_kbhit()) {
