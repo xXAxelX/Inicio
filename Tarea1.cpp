@@ -41,38 +41,37 @@ void procesarProductos(int numeroP, int QuantumSO, int productoDañado, string p
         bool hayQuantumPendiente = false;
 
         for (int i = 0; i < numeroP; i++) {
-            if (quantum[i] <= 0) continue;
-
+            if (quantum[i] <= 0) continue; // Saltar productos ya terminados
+            
+            // Limpia la línea anterior antes de imprimir
+            printf("\r\t\t\t\t\t\t\t                                                                   ");
+            fflush(stdout);
             printf("\rProcesando el producto No. %d: %s", i + 1, productos[i].c_str());
             fflush(stdout);
-            std::string productoActual = productos[i];
-            std::map<int, std::string> chequeoActual;
-
-            if (chequeos.find(productoActual) != chequeos.end()) {
-                chequeoActual = chequeos[productoActual];
-            } else {
-                chequeoActual = chequeos["Genérico"];
-            }
-
-            printf("\rQuantum del producto %d: %d", i + 1, quantum[i]);
+            printf("\r\t\t\t\t\t\t\tQuantum del producto %d: %d", i + 1, quantum[i]);
             fflush(stdout);
 
-            char letra = _getch();  
-            if (i + 1 == productoDañado || letra == 'p') {
-                printf("\r\nInterrupción aplicada al producto No. %d...", i + 1);
+            char letra = _getch();
+            if (i + 1 == productoDañado || letra == 'p') { 
+                printf("\r\nInterrupción aplicada, para el producto No. %d...", i + 1);
                 fflush(stdout);
                 Sleep(1000);
-                printf("\033[F\033[K");
+                printf("\033[F\033[K");  
             } else if (letra == 'A' || letra == 'a') {
-                int vueltas = 1;
-                while (vueltas <= quantum[i] || vueltas <= QuantumSO) {  // Asegurar que no sobrepase quantum
-                    printf("\rChequeo número %d: %s", vueltas, chequeoActual[vueltas].c_str());
+                int vueltas = 0;
+                while (vueltas <= QuantumSO) {
+                    if (vueltas >= quantum[i] + 1){
+                        break;
+                    }
+                    printf("\r\t\t\t\t\t\t\t                     ");
+                    fflush(stdout);
+                    printf("\r\t\t\t\t\t\t\t\t\t\t\tChequeo número: %d", vueltas);
                     fflush(stdout);
 
                     if (_kbhit()) {
                         char tecla = _getch();
                         if (tecla == 'C' || tecla == 'c') {
-                            printf("\nInterrupción aplicada al producto No. %d...", i + 1);
+                            printf("\nInterrupción aplicada, para el producto No. %d...", i + 1);
                             Sleep(1000);
                             printf("\033[F\033[K");
                             interrupcionPorUsuario = true;
@@ -83,36 +82,39 @@ void procesarProductos(int numeroP, int QuantumSO, int productoDañado, string p
                         }
                     }
                     vueltas++;
-                    Sleep(1000);
+                    Sleep(500);
                 }
-
-                // Reducir el quantum solo después de procesar los chequeos
-                quantum[i] -= QuantumSO;
-                if (quantum[i] < 0) quantum[i] = 0;
             }
-
             if (terminarEjecucion) {
                 printf("\033[E\033[K");
-                printf("\nProceso interrumpido en el producto No. %d\n", i + 1);
+                printf("\nProceso completo interrumpido por el sistema cuando se procesaba el producto No. %d\n", i + 1);
                 return;
+            }
+            int nuevoQuantum = quantum[i] - QuantumSO;
+            if (nuevoQuantum > 0) {
+                quantum[i] = nuevoQuantum;
+            } else {
+                quantum[i] = 0; 
             }
         }
 
-        // **Verificar si queda quantum por procesar**
+        // **Verificar si aún hay valores en quantum mayores a 0**
         for (int i = 0; i < numeroP; i++) {
             if (quantum[i] > 0) {
                 hayQuantumPendiente = true;
-                break;
+                break; // Si al menos uno es mayor a 0, no necesitamos seguir revisando
             }
         }
 
+        // Si ya no hay valores mayores a 0, salir del while
         if (!hayQuantumPendiente) break;
     }
-
     if (!interrupcionPorUsuario && !terminarEjecucion) {
+        printf("\033[E\033[K");
         printf("\n\t\t\tFin, proceso completado con éxito\n");
     }
     if (interrupcionPorUsuario) {
+        printf("\033[E\033[K");
         printf("\n\t\t\tFin, proceso completado con interrupciones\n");
     }
 }
