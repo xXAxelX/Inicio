@@ -12,6 +12,32 @@ void procesarProductos(int numeroP, int QuantumSO, int productoDañado, string p
     int QuantumA = 0;
     bool terminarEjecucion = false;
     bool interrupcionPorUsuario = false;
+    // Diccionario con todos los chequeos organizados por producto
+    std::map<std::string, std::map<int, std::string>> chequeos= {
+        {"Atún", {
+            {1, "Peso"}, {2, "Etiqueta"}, {3, "Vencimiento"}, {4, "Proteínas"}, {5, "Sodio"},
+            {6, "Grasa"}, {7, "Grasa saturada"}, {8, "Valor nutricional"}, {9, "Evaluación física del producto"}, {10, "Certificación vigente"}
+        }},
+        {"Aceite de soya", {
+            {1, "Calidad"}, {2, "Ácido Graso"}, {3, "Vencimiento"}, {4, "Proteínas"}, {5, "Sodio"},
+            {6, "Grasa"}, {7, "Grasa saturada"}, {8, "Tipo de semilla tierna"}, {9, "Envase"}, {10, "Certificación vigente"}
+        }},
+        {"Arroz", {
+            {1, "Peso"}, {2, "Etiqueta"}, {3, "Vencimiento"}, {4, "Inocuidad"}, {5, "Limpieza"},
+            {6, "Grano 99%"}, {7, "Dietético 95%"}, {8, "Secado"}, {9, "Evaluación física del producto"}, {10, "Certificación vigente"}
+        }},
+        {"Manteca", {
+            {1, "Peso"}, {2, "Alto contenido de grasa láctea"}, {3, "Vencimiento"}, {4, "Contenidos máximos de agua del 16%"},
+            {5, "Textura suave"}, {6, "Determinación del % de humedad: Máximo 16%"}, {7, "Grasa 2%"}, {8, "Valor nutricional"},
+            {9, "Consistencia"}, {10, "Control de ausencia de antisépticos"}
+        }},
+        // Para productos genéricos
+        {"Genérico", {
+            {1, "Libre de impurezas"}, {2, "Orgánicos"}, {3, "Vencimiento"}, {4, "Desinfección"},
+            {5, "Control Fitosanitarias"}, {6, "Control de Plagas"}, {7, "Certificación Ambiental"},
+            {8, "Valor nutricional"}, {9, "Empaque"}, {10, "Certificación"}
+        }}
+    };
 
     while (contador < numeroP) {
         contador++;
@@ -21,7 +47,15 @@ void procesarProductos(int numeroP, int QuantumSO, int productoDañado, string p
         // Imprime el mensaje de procesamiento en la misma línea
         printf("\rProcesando el producto No. %d: %s", contador, productos[contador - 1].c_str());
         fflush(stdout);
-
+        std::string productoActual = productos[contador - 1];
+        std::map<int, std::string> chequeoActual;
+        
+        // Buscar el conjunto de chequeos para el producto actual
+        if (chequeos.find(productoActual) != chequeos.end()) {
+            chequeoActual = chequeos[productoActual];
+        } else {
+            chequeoActual = chequeos["otros"]; // Usar los chequeos generales si no está en la lista
+        }
         printf("\r\t\t\t\t\t\t\tQuantum del producto %d: %d", contador, quantum[contador - 1]);
         fflush(stdout);
         QuantumA = quantum[contador - 1];
@@ -42,7 +76,8 @@ void procesarProductos(int numeroP, int QuantumSO, int productoDañado, string p
                 printf("\r\t\t\t\t\t\t\t                     ");
                 fflush(stdout);
                 // Actualiza el número del chequeo
-                printf("\r\t\t\t\t\t\t\t\t\t\t\tChequeo número: %d", vueltas);
+                printf("\r\t\t\t\t\t\t\tChequeo número %d: %s", vueltas, chequeoActual[vueltas].c_str());
+
                 fflush(stdout);
                 if (_kbhit()) {
                     char tecla = _getch();
@@ -90,7 +125,30 @@ int main() {
         {9, "Evaluación física del producto"},
         {10, "Certificación vigente"}
     };
-
+    std::map<int, std::string> Aceite_de_soya = {
+        {1, "Calidad"},
+        {2, "Ácido Graso"},
+        {3, "Vencimiento"},
+        {4, "Proteínas"},
+        {5, "Sodio"},
+        {6, "Grasa"},
+        {7, "Grasa saturada"},
+        {8, "Tipo de semilla tierna"},
+        {9, "Envase"},
+        {10, "Certificación vigente"}
+    };
+    std::map<int, std::string> Arroz = {
+        {1, "Peso"},
+        {2, "Etiqueta"},
+        {3, "Vencimiento"},
+        {4, "Inocuidad"},
+        {5, "Limpieza"},
+        {6, "Grano 99%"},
+        {7, "Dietético 95%"},
+        {8, "Secado"},
+        {9, "Evaluación física del producto"},
+        {10, "Certificación vigente"}
+    };
     std::map<int, std::string> manteca = {
         {1, "Peso"},
         {2, "Alto contenido de grasa láctea"},
@@ -115,6 +173,19 @@ int main() {
         {8, "Valor nutricional"},
         {9, "Empaque"},
         {10, "Certificación vigente"}
+    };
+    // para los demas
+    std::map<int, std::string> demas = {
+        {1, "Libre de impurezas"},
+        {2, "Orgánicos"},
+        {3, "Vencimiento"},
+        {4, "Desinfección"},
+        {5, "Control Fitosanitarias"},
+        {6, "Control de Plagas"},
+        {7, "Certificación Ambiental "},
+        {8, "Valor nutricional"},
+        {9, "Empaque"},
+        {10, "Certificación"}
     };
     int contador = 0;
     int numeroP = 0;
