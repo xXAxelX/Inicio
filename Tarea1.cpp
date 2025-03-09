@@ -19,7 +19,7 @@ char getchLinux() {
     ch = getchar();
     tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
     return ch;
-}
+}//cambio sutil
 
 // Función para verificar si hay una tecla presionada sin bloquear
 int kbhitLinux() {
