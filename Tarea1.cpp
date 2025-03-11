@@ -5,9 +5,49 @@
 #include <termios.h>  // Para capturar entrada sin bloqueo
 #include <unistd.h>   // Para usleep()
 #include <fcntl.h>    // Para detectar teclas sin bloqueo
+#include <cstdlib>    // Para la gestión de memoria real
+#include <sys/mman.h> // Para bloquear memoria con mlock()
 
 using namespace std;
 
+size_t memoria_MB = 2000; // 1GB (1024 MB)
+size_t memoria_bytes = memoria_MB * 1024 * 1024; // Convertimos a bytes
+void* memoriaReservada = nullptr; // Puntero para la memoria solicitada
+
+// Método para solicitar RAM real y bloquearla
+void SolicitaRam() {
+    while (memoriaReservada == nullptr) {
+        memoriaReservada = malloc(memoria_bytes); // Solicita memoria
+        if (memoriaReservada == nullptr) {
+            cerr << "\rError al asignar memoria. Reintentando...\r";
+            fflush(stdout);
+            usleep(500000);
+        } else {
+            while (mlock(memoriaReservada, memoria_bytes) != 0) {
+                cerr << "\rMemoria solicitada no tuvo éxito     \r";
+                fflush(stdout);
+                usleep(500000);
+            }
+            cout << "";
+            cout << "\rSe reservaron " << memoria_MB << "MB de RAM en la dirección: " << memoriaReservada << " y se bloqueó en RAM.        \r";
+            fflush(stdout);
+        }
+    }
+}
+
+// Método para liberar la RAM real y desbloquearla
+void LiberaRam() {
+    if (memoriaReservada != nullptr) {
+        munlock(memoriaReservada, memoria_bytes);
+        free(memoriaReservada);
+        memoriaReservada = nullptr;
+        cout << "\rSe liberaron " << memoria_MB << "MB de RAM y se desbloqueó.        \r";
+        fflush(stdout);
+        usleep(1000000); // Pausa para que se pueda leer el mensaje
+        cout << "\r                                                           \r";
+        fflush(stdout); // Borra la línea
+    }
+}
 // Función para leer un carácter sin necesidad de presionar Enter
 char getchLinux() {
     struct termios oldt, newt;
@@ -75,12 +115,20 @@ void procesarProductos(int numeroP, int QuantumSO, int productoDañado, string p
         }}
     };
 
+    int bucle=0;
     while (true) {
-        bool hayQuantumPendiente = false;
+        bucle++;
+        printf("\rNúmero de bucles pasados: %d                                                                                                                   ", bucle);
+        fflush(stdout);
 
+        bool hayQuantumPendiente = false;
+        printf("\r\n");
+        fflush(stdout);
+        printf("\r\n");
+        fflush(stdout);
         for (int i = 0; i < numeroP; i++) {
-            if (quantum[i] <= 0) continue;
-            printf("\r\t\t\t\t\t\t\t                                                                   ");
+            if (quantum[i] <= 0) continue;            
+            printf("\r\t\t\t\t\t\t\t                                                                                          ");
             fflush(stdout);
             printf("\rProcesando el producto No. %d: %s", i + 1, productos[i].c_str());
             fflush(stdout);
@@ -88,6 +136,8 @@ void procesarProductos(int numeroP, int QuantumSO, int productoDañado, string p
             fflush(stdout);
 
             usleep(1000000);
+
+            
 
             std::string productoActual = productos[i];
             std::map<int, std::string> chequeoActual;
@@ -107,6 +157,10 @@ void procesarProductos(int numeroP, int QuantumSO, int productoDañado, string p
                 printf("\nProceso interrumpido cuando se procesaba el producto No. %d\n", i + 1);
                 return;
             }
+            printf("\r\n");
+            fflush(stdout);
+            SolicitaRam();
+            cout << "\033[A\r]";
 
             int vueltas = 0;
             while (vueltas <= QuantumSO) {
@@ -136,8 +190,16 @@ void procesarProductos(int numeroP, int QuantumSO, int productoDañado, string p
                     }
                 }
                 vueltas++;
+                if (vueltas == 11){
+                    quantum[i] = 0;
+                }
                 usleep(500000);
             }
+            printf("\r\n");
+            fflush(stdout);
+            LiberaRam();
+            cout << "                                                                                              ";
+            cout << "\033[A\r]";
             if (terminarEjecucion) {
                 printf("\nProceso interrumpido cuando se procesaba el producto No. %d\n", i + 1);
                 return;
@@ -153,7 +215,8 @@ void procesarProductos(int numeroP, int QuantumSO, int productoDañado, string p
         }
 
         if (!hayQuantumPendiente) break;
-    }
+        
+    }    
     printf("\nProceso completado con %s\n", interrupcionPorUsuario ? "interrupciones" : "éxito");
 }
 
@@ -182,7 +245,7 @@ int main() {
     cout << "\nEl producto dañado es el número: " << productoDañado << "";
     cout << "\n\t\tPresione la tecla A para continuar.  Presione F para terminar el programa.    Presione la tecla C para interrumpir un producto";
     cout << "\n";
-
+    cout << "\n";
     procesarProductos(numeroP, QuantumSO, productoDañado, productos, quantum);
     return 0;
 }
