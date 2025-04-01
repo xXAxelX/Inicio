@@ -1,54 +1,34 @@
-#include <stdio.h>
 #include <iostream>
 #include <map>
 #include <string>
-#include <termios.h>  // Para capturar entrada sin bloqueo
-#include <unistd.h>   // Para usleep()
-#include <fcntl.h>    // Para detectar teclas sin bloqueo
-#include <cstdlib>    // Para la gestión de memoria real
-#include <sys/mman.h> // Para bloquear memoria con mlock()
+#include <thread>
+#include <vector>
+#include <mutex>
+#include <termios.h>    // Para capturar entrada sin bloqueo
+#include <unistd.h>     // Para usleep()
+#include <fcntl.h>      // Para detectar teclas sin bloqueo
+#include <cstdlib>      // Para la gestión de memoria
+#include <sys/mman.h>   // Para bloquear memoria con mlock()
 
 using namespace std;
 
-size_t memoria_MB = 2000; // 1GB (1024 MB)
-size_t memoria_bytes = memoria_MB * 1024 * 1024; // Convertimos a bytes
-void* memoriaReservada = nullptr; // Puntero para la memoria solicitada
+// Mutex global para sincronizar la salida por consola
+static std::mutex console_mutex;
 
-// Método para solicitar RAM real y bloquearla
-void SolicitaRam() {
-    while (memoriaReservada == nullptr) {
-        memoriaReservada = malloc(memoria_bytes); // Solicita memoria
-        if (memoriaReservada == nullptr) {
-            cerr << "\rError al asignar memoria. Reintentando...\r";
-            fflush(stdout);
-            usleep(500000);
-        } else {
-            while (mlock(memoriaReservada, memoria_bytes) != 0) {
-                cerr << "\rMemoria solicitada no tuvo éxito     \r";
-                fflush(stdout);
-                usleep(500000);
-            }
-            cout << "";
-            cout << "\rSe reservaron " << memoria_MB << "MB de RAM en la dirección: " << memoriaReservada << " y se bloqueó en RAM.        \r";
-            fflush(stdout);
-        }
-    }
-}
+// Parámetros de memoria a reservar
+size_t memoria_MB = 2000; // 2000MB
+size_t memoria_bytes = memoria_MB * 1024 * 1024;
 
-// Método para liberar la RAM real y desbloquearla
-void LiberaRam() {
-    if (memoriaReservada != nullptr) {
-        munlock(memoriaReservada, memoria_bytes);
-        free(memoriaReservada);
-        memoriaReservada = nullptr;
-        cout << "\rSe liberaron " << memoria_MB << "MB de RAM y se desbloqueó.        \r";
-        fflush(stdout);
-        usleep(1000000); // Pausa para que se pueda leer el mensaje
-        cout << "\r                                                           \r";
-        fflush(stdout); // Borra la línea
-    }
-}
-// Función para leer un carácter sin necesidad de presionar Enter
+// Estructura para representar un producto
+struct ProductProcess {
+    string nombre;
+    int quantum;       // Quantum restante (cantidad de chequeos pendientes)
+    int index;         // Número del producto (1, 2, …)
+    int checkNumber;   // Número del siguiente chequeo a realizar (inicializado en 1)
+    void* memoriaReservada = nullptr; // Puntero a la memoria reservada
+};
+
+// Función para capturar un carácter sin bloqueo
 char getchLinux() {
     struct termios oldt, newt;
     char ch;
@@ -59,193 +39,392 @@ char getchLinux() {
     ch = getchar();
     tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
     return ch;
-}//cambio sutil
+}
 
-// Función para verificar si hay una tecla presionada sin bloquear
+// Función para verificar si hay tecla presionada
 int kbhitLinux() {
     struct termios oldt, newt;
     int ch;
     int oldf;
-
     tcgetattr(STDIN_FILENO, &oldt);
     newt = oldt;
     newt.c_lflag &= ~(ICANON | ECHO);
     tcsetattr(STDIN_FILENO, TCSANOW, &newt);
     oldf = fcntl(STDIN_FILENO, F_GETFL, 0);
     fcntl(STDIN_FILENO, F_SETFL, oldf | O_NONBLOCK);
-
     ch = getchar();
-
     tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
     fcntl(STDIN_FILENO, F_SETFL, oldf);
-
-    if (ch != EOF) {
+    if(ch != EOF) {
         ungetc(ch, stdin);
         return 1;
     }
-
     return 0;
 }
 
-void procesarProductos(int numeroP, int QuantumSO, int productoDañado, string productos[], int quantum[]) {
-    bool terminarEjecucion = false;
-    bool interrupcionPorUsuario = false;
-    std::map<std::string, std::map<int, std::string>> chequeos = {
+// Función auxiliar para detectar la tecla F en cualquier parte
+bool checkForF() {
+    if (kbhitLinux()) {
+        char tecla = getchLinux();
+        if (tecla == 'F' || tecla == 'f') {
+            return true;
+        }
+    }
+    return false;
+}
+
+// ------------------- Funciones de hilo --------------------
+
+// Reserva_H: Solicita y bloquea la memoria real para el producto.
+void Reserva_H(ProductProcess &prod) {
+    {
+        std::lock_guard<std::mutex> lock(console_mutex);
+        printf("Iniciando hilo: Reserva_H\n");
+        fflush(stdout);
+    }
+    cout << "\n\n";
+    while(prod.memoriaReservada == nullptr) {
+        // Verificar interrupción global por tecla F
+        if (checkForF()) {
+            if(prod.memoriaReservada != nullptr) {
+                free(prod.memoriaReservada);
+                prod.memoriaReservada = nullptr;
+            }
+            {
+                std::lock_guard<std::mutex> lock(console_mutex);
+                printf("\r\33[2K\r");
+                printf("Proceso interrumpido cuando se procesaba el producto No. %d \n", prod.index);
+                fflush(stdout);
+            }
+            exit(0);
+        }
+        prod.memoriaReservada = malloc(memoria_bytes); // Solicita memoria
+        {
+            std::lock_guard<std::mutex> lock(console_mutex);
+            if(prod.memoriaReservada == nullptr) {
+                printf("\rError al asignar memoria. Reintentando...\r");
+                fflush(stdout);
+            }
+        }
+        if(prod.memoriaReservada == nullptr) {
+            usleep(500000);
+        } else {
+            while(mlock(prod.memoriaReservada, memoria_bytes) != 0) {
+                if (checkForF()) {
+                    free(prod.memoriaReservada);
+                    prod.memoriaReservada = nullptr;
+                    {
+                        std::lock_guard<std::mutex> lock(console_mutex);
+                        printf("\r\33[2K\r");
+                        printf("Proceso interrumpido cuando se procesaba el producto No. %d \n", prod.index);
+                        fflush(stdout);
+                    }
+                    exit(0);
+                }
+                {
+                    std::lock_guard<std::mutex> lock(console_mutex);
+                    printf("\rMemoria solicitada no tuvo éxito     \r");
+                    fflush(stdout);
+                }
+                usleep(500000);
+            }
+            {
+                std::lock_guard<std::mutex> lock(console_mutex);
+                printf("\rSe reservaron %zuMB de RAM en la dirección: %p y se bloqueó en RAM.", memoria_MB, prod.memoriaReservada);
+                fflush(stdout);
+                usleep(1500000);
+            }
+        }
+    }
+    std::cout << "\033[A";
+    std::cout << "\033[A";
+}
+
+// Productos_H: Muestra el inicio del procesamiento y realiza validaciones básicas.
+void Productos_H(ProductProcess &prod, int QuantumSO, int productoDaniado) {
+    {
+        std::lock_guard<std::mutex> lock(console_mutex);
+        printf("Iniciando hilo: Productos_H\n");
+        fflush(stdout);
+    }
+    {
+        std::lock_guard<std::mutex> lock(console_mutex);
+        printf("\r\33[2K\r");
+        printf("Procesando el producto No. %d: %s (Productos_H)  Quantum: %d", 
+               prod.index, prod.nombre.c_str(), prod.quantum);
+        fflush(stdout);
+    }
+    usleep(1000000);
+    
+    // Si es el producto dañado, se informa y se pone su quantum en 0.
+    if(prod.index == productoDaniado) {
+        {
+            std::lock_guard<std::mutex> lock(console_mutex);
+            printf("\rProducto dañado detectado en Productos_H. Quantum se pone en 0.\n");
+            fflush(stdout);
+        }
+        prod.quantum = 0;
+    }
+    
+    // Detección de interrupción en este hilo.
+    if (kbhitLinux()) {
+        char tecla = getchLinux();
+        if (tecla == 'F' || tecla == 'f') {
+            {
+                std::lock_guard<std::mutex> lock(console_mutex);
+                printf("\r\33[2K\r");
+                printf("Proceso interrumpido en Productos_H para el producto No. %d \n", prod.index);
+                fflush(stdout);
+            }
+            exit(0);
+        }
+    }
+}
+
+// Unidad_H: Se encarga de realizar los chequeos del producto.
+void Unidad_H(ProductProcess &prod, int QuantumSO, int productoDaniado,
+              const map<string, map<int, string>> &chequeos) {
+    {
+        std::lock_guard<std::mutex> lock(console_mutex);
+        printf("Iniciando hilo: Unidad_H\n");
+        fflush(stdout);
+    }
+    
+    int chequeosRound = (QuantumSO < prod.quantum) ? QuantumSO : prod.quantum;
+    int processed = 0;
+    
+    for (int i = 0; i < chequeosRound; i++) {
+        if (kbhitLinux()) {
+            char tecla = getchLinux();
+            cout << "\n";
+            if (tecla == 'C' || tecla == 'c') {
+                int opcion;
+                {
+                    std::lock_guard<std::mutex> lock(console_mutex);
+                    cout << "\nSeleccione una opción de interrupción:\n";
+                    cout << "1. Desperfecto de hardware en la máquina de chequeo\n";
+                    cout << "2. Por tiempo de procesamiento\n";
+                    cout << "3. Por fin de jornada\n";
+                    cout << "4. Por cambio de jornada\n";
+                    cout << "5. Mantenimiento de la máquina de chequeo\n";
+                    cout << "Seleccione: ";
+                    fflush(stdout);
+                }
+                do {
+                    cin >> opcion;
+                } while (opcion < 1 || opcion > 5);
+        
+                {
+                    std::lock_guard<std::mutex> lock(console_mutex);
+                    cout << "\nInterrupción por usuario en Unidad_H.\n";
+                    fflush(stdout);
+                }
+                usleep(1000000);
+                break;  // Sale del ciclo de chequeos para este producto en esta ronda.
+            } else if (tecla == 'F' || tecla == 'f') {
+                {
+                    std::lock_guard<std::mutex> lock(console_mutex);
+                    printf("\r\33[2K\r");
+                    printf("Proceso interrumpido en Unidad_H para el producto No. %d \n", prod.index);
+                    fflush(stdout);
+                }
+                exit(0);
+            }
+        }
+        
+        {
+            std::lock_guard<std::mutex> lock(console_mutex);
+            printf("\r                                                                       \r");
+            const map<int, string>* chequeoProducto;
+            auto it = chequeos.find(prod.nombre);
+            if(it != chequeos.end()) {
+                chequeoProducto = &it->second;
+            } else {
+                chequeoProducto = &chequeos.at("Genérico");
+            }
+            printf("\rChequeo (Unidad_H) número %d: %s", prod.checkNumber, chequeoProducto->at(prod.checkNumber).c_str());
+            fflush(stdout);
+        }
+        usleep(500000);
+        prod.checkNumber++;
+        processed++;
+    }
+    prod.quantum -= processed;
+    printf("\r                                                                       \r");
+    std::cout << "\033[A";
+}
+
+// Libera_H: Desbloquea y libera la memoria reservada para el producto.
+void Libera_H(ProductProcess &prod) {
+    {
+        std::lock_guard<std::mutex> lock(console_mutex);
+        printf("Iniciando hilo: Libera_H\n");
+        fflush(stdout);
+    }
+    if(prod.memoriaReservada != nullptr) {
+        munlock(prod.memoriaReservada, memoria_bytes);
+        free(prod.memoriaReservada);
+        cout << "\n\n";
+        prod.memoriaReservada = nullptr;
+        {
+            std::lock_guard<std::mutex> lock(console_mutex);
+            printf("\r\33[2K\r");
+            printf("\rSe liberaron %zuMB de RAM y se desbloqueó.", memoria_MB);
+            fflush(stdout);
+            usleep(1500000);
+            printf("\r\33[2K\r");
+            fflush(stdout);
+        }
+        std::cout << "\033[A";
+        std::cout << "\033[A";
+        usleep(1000000);
+    }
+}
+
+// procesarProductoRound: Coordina los 4 hilos para procesar un producto.
+void procesarProductoRound(ProductProcess &prod, int QuantumSO, int productoDaniado,
+                           const map<string, map<int, string>> &chequeos) {
+    std::thread tReserva(Reserva_H, std::ref(prod));
+    tReserva.join();
+    
+    std::thread tProductos(Productos_H, std::ref(prod), QuantumSO, productoDaniado);
+    tProductos.join();
+    
+    std::thread tUnidad(Unidad_H, std::ref(prod), QuantumSO, productoDaniado, std::cref(chequeos));
+    tUnidad.join();
+    
+    std::thread tLibera(Libera_H, std::ref(prod));
+    tLibera.join();
+}
+
+int main() {
+    // Definición de productos y quantum inicial
+    string productos[] = {"Atún", "Aceite de soya", "Arroz", "Manteca", "Tomate"};
+    int quantumArr[] = {5, 12, 4, 8, 6};
+
+    int numeroP, QuantumSO, productoDaniado;
+    
+    do {
+        {
+            std::lock_guard<std::mutex> lock(console_mutex);
+            cout << "Ingresa el quantum del SO entre 5 y 10: ";
+            fflush(stdout);
+        }
+        cin >> QuantumSO;
+    } while(QuantumSO < 5 || QuantumSO > 10);
+
+    do {
+        {
+            std::lock_guard<std::mutex> lock(console_mutex);
+            cout << "Ingresa un número de productos entre 5 y 10: ";
+            fflush(stdout);
+        }
+        cin >> numeroP;
+    } while(numeroP < 5 || numeroP > 10);
+
+    do {
+        {
+            std::lock_guard<std::mutex> lock(console_mutex);
+            cout << "Ingresa el producto dañado (1-" << numeroP << "): ";
+            fflush(stdout);
+        }
+        cin >> productoDaniado;
+    } while(productoDaniado > numeroP || productoDaniado > 10);
+    
+    {
+        std::lock_guard<std::mutex> lock(console_mutex);
+        cout << "\nLa cantidad de productos es: " << numeroP << "\n";
+        cout << "El producto dañado es el número: " << productoDaniado << "\n";
+        cout << "\tPresione la tecla A para continuar.  Presione F para terminar el programa.  Presione C para interrumpir un producto.\n\n";
+        fflush(stdout);
+    }
+    
+    // Crear vector de productos e inicializar checkNumber en 1 para cada uno.
+    vector<ProductProcess> lista;
+    for (int i = 0; i < numeroP; i++) {
+        ProductProcess p;
+        p.nombre = productos[i];
+        p.quantum = quantumArr[i];
+        p.index = i + 1;
+        p.checkNumber = 1;
+        lista.push_back(p);
+    }
+    
+    // Definir el conjunto de chequeos.
+    map<string, map<int, string>> chequeos = {
         {"Atún", {
             {1, "Peso"}, {2, "Etiqueta"}, {3, "Vencimiento"}, {4, "Proteínas"}, {5, "Sodio"},
-            {6, "Grasa"}, {7, "Grasa saturada"}, {8, "Valor nutricional"}, {9, "Evaluación física del producto"}, {10, "Certificación vigente"}
+            {6, "Grasa"}, {7, "Grasa saturada"}, {8, "Valor nutricional"}, {9, "Evaluación física"}, {10, "Certificación"}
         }},
         {"Aceite de soya", {
             {1, "Calidad"}, {2, "Ácido Graso"}, {3, "Vencimiento"}, {4, "Proteínas"}, {5, "Sodio"},
-            {6, "Grasa"}, {7, "Grasa saturada"}, {8, "Tipo de semilla tierna"}, {9, "Envase"}, {10, "Certificación vigente"}
+            {6, "Grasa"}, {7, "Grasa saturada"}, {8, "Tipo de semilla"}, {9, "Envase"}, {10, "Certificación"}
         }},
         {"Arroz", {
             {1, "Peso"}, {2, "Etiqueta"}, {3, "Vencimiento"}, {4, "Inocuidad"}, {5, "Limpieza"},
-            {6, "Grano 99%"}, {7, "Dietético 95%"}, {8, "Secado"}, {9, "Evaluación física del producto"}, {10, "Certificación vigente"}
+            {6, "Grano 99%"}, {7, "Dietético 95%"}, {8, "Secado"}, {9, "Evaluación física"}, {10, "Certificación"}
         }},
         {"Manteca", {
-            {1, "Peso"}, {2, "Alto contenido de grasa láctea"}, {3, "Vencimiento"}, {4, "Contenidos máximos de agua del 16%"},
-            {5, "Textura suave"}, {6, "Determinación del % de humedad: Máximo 16%"}, {7, "Grasa 2%"}, {8, "Valor nutricional"},
-            {9, "Consistencia"}, {10, "Control de ausencia de antisépticos"}
+            {1, "Peso"}, {2, "Alto contenido de grasa"}, {3, "Vencimiento"}, {4, "Máximo 16% agua"},
+            {5, "Textura suave"}, {6, "Humedad max 16%"}, {7, "Grasa 2%"}, {8, "Valor nutricional"},
+            {9, "Consistencia"}, {10, "Control de antisépticos"}
         }},
         {"Genérico", {
             {1, "Libre de impurezas"}, {2, "Orgánicos"}, {3, "Vencimiento"}, {4, "Desinfección"},
-            {5, "Control Fitosanitarias"}, {6, "Control de Plagas"}, {7, "Certificación Ambiental"},
+            {5, "Control fitosanitario"}, {6, "Control de plagas"}, {7, "Certificación ambiental"},
             {8, "Valor nutricional"}, {9, "Empaque"}, {10, "Certificación"}
         }}
     };
 
-    int bucle=0;
+    int round = 0;
+    // Procesamiento round-robin.
     while (true) {
-        bucle++;
-        printf("\rNúmero de bucles pasados: %d                                                                                                                   ", bucle);
-        fflush(stdout);
-
-        bool hayQuantumPendiente = false;
-        printf("\r\n");
-        fflush(stdout);
-        printf("\r\n");
-        fflush(stdout);
-        for (int i = 0; i < numeroP; i++) {
-            if (quantum[i] <= 0) continue;            
-            printf("\r\t\t\t\t\t\t\t                                                                                          ");
-            fflush(stdout);
-            printf("\rProcesando el producto No. %d: %s", i + 1, productos[i].c_str());
-            fflush(stdout);
-            printf("\r\t\t\t\t\t\t\tQuantum del producto %d: %d", i + 1, quantum[i]);
-            fflush(stdout);
-
-            usleep(1000000);
-
-            
-
-            std::string productoActual = productos[i];
-            std::map<int, std::string> chequeoActual;
-
-            // Buscar el conjunto de chequeos para el producto actual
-            if (chequeos.find(productoActual) != chequeos.end()) {
-                chequeoActual = chequeos[productoActual];
-            } else {
-                chequeoActual = chequeos["Genérico"]; // Usar los chequeos generales si no está en la lista
-            }
-            char letra;
-            do {
-                letra = getchLinux();
-            } while (letra != 'A' && letra != 'a' && letra != 'F' && letra != 'f');
-
-            if (letra == 'F' || letra == 'f') {
-                printf("\nProceso interrumpido cuando se procesaba el producto No. %d\n", i + 1);
-                return;
-            }
-            printf("\r\n");
-            fflush(stdout);
-            SolicitaRam();
-            cout << "\033[A\r]";
-
-            int vueltas = 0;
-            while (vueltas <= QuantumSO) {
-                if (i + 1 == productoDañado){
-                    printf("\nInterrupción aplicada para el producto No. %d...", i + 1);
-                    cout << "\n";
-                    usleep(1000000);
-                    break;
-                }
-                if (vueltas >= quantum[i] + 1) break;
-                printf("\r\t\t\t\t\t\t\t\t\t\t\t                                                             ");
-                fflush(stdout);
-                printf("\r\t\t\t\t\t\t\t\t\t\t\tChequeo número %d: %s", vueltas, chequeoActual[vueltas].c_str());
-                fflush(stdout);
-
-                if (kbhitLinux()) {
-                    char tecla = getchLinux();
-                    if (tecla == 'C' || tecla == 'c') {
-                        printf("\nInterrupción aplicada para el producto No. %d...", i + 1);
-                        cout << "\n";
-                        usleep(1000000);
-                        interrupcionPorUsuario = true;
-                        break;
-                    } else if (tecla == 'F' || tecla == 'f') {
-                        terminarEjecucion = true;
-                        break;
-                    }
-                }
-                vueltas++;
-                if (vueltas == 11){
-                    quantum[i] = 0;
-                }
-                usleep(500000);
-            }
-            printf("\r\n");
-            fflush(stdout);
-            LiberaRam();
-            cout << "                                                                                              ";
-            cout << "\033[A\r]";
-            if (terminarEjecucion) {
-                printf("\nProceso interrumpido cuando se procesaba el producto No. %d\n", i + 1);
-                return;
-            }
-            quantum[i] = max(quantum[i] - QuantumSO, 0);
-        }
-
-        for (int i = 0; i < numeroP; i++) {
-            if (quantum[i] > 0) {
-                hayQuantumPendiente = true;
-                break;
+        bool anyLeft = false;
+        for (auto &p : lista) {
+            if (p.quantum > 0) { 
+                anyLeft = true; 
+                break; 
             }
         }
-
-        if (!hayQuantumPendiente) break;
+        if (!anyLeft) break;
         
-    }    
-    printf("\nProceso completado con %s\n", interrupcionPorUsuario ? "interrupciones" : "éxito");
-}
-
-int main() {
-    string productos[] = {"Atún", "Aceite de soya", "Arroz", "Manteca", "Manteca", "Tomate", "Papas", "Sandias", "Melones", "Papayas"};
-    int quantum[] = {5, 12, 4, 8, 2, 6, 1, 7, 9, 10};
-
-    int numeroP, QuantumSO, productoDañado;
-
-    do {
-        cout << "Ingresa el quantum del SO entre 5 y 10: ";
-        cin >> QuantumSO;
-    } while (QuantumSO < 5 || QuantumSO > 10);
-
-    do {
-        cout << "Ingresa un número de productos entre 5 y 10: ";
-        cin >> numeroP;
-    } while (numeroP < 5 || numeroP > 10);
-
-    do{
-        cout << "Ingresa el producto dañado (1-" << numeroP << "): ";
-        cin >> productoDañado;
-    } while (productoDañado > numeroP || productoDañado > 10);
+        round++;
+        {
+            std::lock_guard<std::mutex> lock(console_mutex);
+            printf("\r\33[2K\r");
+            printf("Secuencia N.%d\n", round);
+            fflush(stdout);
+        }
+        
+        for (auto &p : lista) {
+            if (p.quantum > 0) {
+                // Esperar la pulsación de la tecla A para iniciar el procesamiento.
+                while (true) {
+                    if (checkForF()) {
+                        for (auto &prod : lista) {
+                            if (prod.memoriaReservada != nullptr) {
+                                Libera_H(prod);
+                            }
+                        }
+                        {
+                            std::lock_guard<std::mutex> lock(console_mutex);
+                            printf("\nProceso interrumpido.\n");
+                            fflush(stdout);
+                        }
+                        exit(0);
+                    }
+                    char c = getchLinux();
+                    if (c == 'A' || c == 'a') break;
+                }
+                procesarProductoRound(p, QuantumSO, productoDaniado, chequeos);
+            }
+        }
+    }
     
-    cout << "La cantidad de productos es: " << numeroP << "";
-    cout << "\nEl producto dañado es el número: " << productoDañado << "";
-    cout << "\n\t\tPresione la tecla A para continuar.  Presione F para terminar el programa.    Presione la tecla C para interrumpir un producto";
-    cout << "\n";
-    cout << "\n";
-    procesarProductos(numeroP, QuantumSO, productoDañado, productos, quantum);
+    {
+        std::lock_guard<std::mutex> lock(console_mutex);
+        cout << "\nProceso completado.\n";
+        fflush(stdout);
+    }
     return 0;
 }
